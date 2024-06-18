@@ -5,8 +5,7 @@ use bevy::{prelude::*, time::Stopwatch};
 pub const TOAST_Z_INDEX: i32 = 1000;
 pub const DEFAULT_TOAST_HEIGHT: f32 = 80.;
 
-#[derive(Default)]
-#[derive(Component, Reflect)]
+#[derive(Default, Component, Reflect)]
 pub struct ToastMarker;
 
 // Toast Plugin accepts one type parameter, M.
@@ -35,7 +34,7 @@ impl ToastPlugin<ToastMarker> {
         lifetime: Res<ToastLifetime<ToastMarker>>,
     ) {
         for toast in toasts {
-            commands.spawn((Toast::bundle(toast, lifetime.lifetime.clone()), ToastMarker));
+            commands.spawn((Toast::bundle(toast, lifetime.lifetime), ToastMarker));
         }
     }
 }
@@ -79,13 +78,11 @@ impl<M: Component + TypePath + Default> ToastPlugin<M> {
     // M: Send + Sync + 'static,
     {
         for toast in toasts {
-            commands.spawn((
-                Toast::bundle(toast, lifetime.lifetime.clone()),
-                M::default(),
-            ));
+            commands.spawn((Toast::bundle(toast, lifetime.lifetime), M::default()));
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn tick_active_toasts(
         mut commands: Commands,
         mut spawned_toasts: Query<(Entity, &mut ToastTimer), (With<M>, With<ToastUi>)>,
@@ -155,6 +152,7 @@ impl<M: Component + TypePath + Default> ToastPlugin<M> {
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn despawn_toast_root(
         mut commands: Commands,
         spawned_toasts: Query<Entity, (With<M>, With<ToastUi>)>,
@@ -167,16 +165,14 @@ impl<M: Component + TypePath + Default> ToastPlugin<M> {
         let num_unspawned_toasts = toasts_to_spawn.iter().count();
 
         // if there are no toasts, remove any containers
-        if num_unspawned_toasts + num_live_toasts == 0 {
-            if !toasts_ui_root.is_empty() {
-                // This is fine as long as this plugin guarantees to only create one root at a time.
-                let entity = toasts_ui_root.single();
-                commands.entity(entity).despawn_recursive();
-            }
-            return;
+        if num_unspawned_toasts + num_live_toasts == 0 && !toasts_ui_root.is_empty() {
+            // This is fine as long as this plugin guarantees to only create one root at a time.
+            let entity = toasts_ui_root.single();
+            commands.entity(entity).despawn_recursive();
         }
     }
 
+    #[allow(clippy::type_complexity)]
     fn spawn_toasts(
         mut commands: Commands,
         spawned_toasts: Query<Entity, (With<M>, With<ToastUi>)>,
@@ -274,12 +270,10 @@ impl<M: Component + TypePath + Default> ToastPlugin<M> {
     }
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[derive(SystemSet)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, SystemSet)]
 pub struct ToastSystems;
 
-#[derive(Debug)]
-#[derive(Resource, Reflect)]
+#[derive(Debug, Resource, Reflect)]
 pub struct ToastLifetime<M: TypePath> {
     lifetime: Duration,
     #[reflect(ignore)]
@@ -298,8 +292,7 @@ where
     }
 }
 
-#[derive(Debug)]
-#[derive(Resource, Reflect)]
+#[derive(Debug, Resource, Reflect)]
 pub struct MaxToasts<M: TypePath> {
     max: usize,
     #[reflect(ignore)]
@@ -329,8 +322,7 @@ where
     }
 }
 
-#[derive(Debug)]
-#[derive(Resource)]
+#[derive(Debug, Resource)]
 pub struct ToastElements<M> {
     pub container: NodeBundle,
     pub toast: NodeBundle,
@@ -429,8 +421,7 @@ impl<M> Default for ToastElements<M> {
     }
 }
 
-#[derive(Debug)]
-#[derive(Component)]
+#[derive(Debug, Component)]
 pub struct Toast {
     message: String,
 }
@@ -450,36 +441,28 @@ impl Toast {
     }
 }
 
-#[derive(Debug)]
-#[derive(Component, Reflect)]
+#[derive(Debug, Component, Reflect)]
 pub struct ToastUiRoot;
 
-#[derive(Debug)]
-#[derive(Component, Reflect)]
+#[derive(Debug, Component, Reflect)]
 pub struct ToastTimer {
     time_alive: Stopwatch,
     lifetime: Duration,
 }
 
-#[derive(Clone, Debug)]
-#[derive(Component, Reflect)]
+#[derive(Clone, Debug, Component, Reflect)]
 pub enum ToastTransition {
     FadeIn,
     FadeOut,
 }
 
-#[derive(Debug, Default)]
-#[derive(Component, Reflect)]
+#[derive(Debug, Default, Component, Reflect)]
 pub struct TransitionTimer {
     time_alive: Stopwatch,
 }
 
 impl TransitionTimer {
     pub const DURATION: Duration = Duration::from_millis(500);
-
-    fn get_remaining(&self) -> Duration {
-        Self::DURATION.saturating_sub(self.time_alive.elapsed())
-    }
 
     fn get_completion(&self) -> f32 {
         (self.time_alive.elapsed().as_secs_f32() / Self::DURATION.as_secs_f32())
@@ -490,15 +473,9 @@ impl TransitionTimer {
     fn tick(&mut self, delta: Duration) {
         self.time_alive.tick(delta);
     }
-
-    /// Returns whether the timer has elapsed the constant duration or not.
-    fn is_complete(&self) -> bool {
-        self.get_remaining().is_zero()
-    }
 }
 
-#[derive(Debug)]
-#[derive(Component)]
+#[derive(Debug, Component)]
 pub struct ToastUi;
 
 impl ToastUi {
@@ -557,8 +534,7 @@ mod tests {
 
     use super::*;
 
-    #[derive(Default)]
-    #[derive(Component, Reflect)]
+    #[derive(Default, Component, Reflect)]
     struct MyToast;
 
     fn toast_per_second(
