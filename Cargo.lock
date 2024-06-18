@@ -954,7 +954,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "bevy_toasts"
+name = "bevy_toasts_ui"
 version = "0.1.0"
 dependencies = [
  "anyhow",
