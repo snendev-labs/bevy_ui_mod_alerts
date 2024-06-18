@@ -3,6 +3,7 @@ use std::{marker::PhantomData, time::Duration};
 use bevy::{prelude::*, time::Stopwatch};
 
 pub const TOAST_Z_INDEX: i32 = 1000;
+pub const DEFAULT_TOAST_HEIGHT: f32 = 80.;
 
 #[derive(Default)]
 #[derive(Component, Reflect)]
@@ -52,7 +53,9 @@ where
                 (
                     Self::tick_active_toasts,
                     Self::despawn_toast_root,
+                    Self::tick_transitions,
                     Self::spawn_toasts,
+                    Self::handle_toast_button_bgs,
                     Self::handle_dismiss_toast_buttons,
                 )
                     .chain()
@@ -61,7 +64,8 @@ where
 
         app.register_type::<ToastLifetime<M>>()
             .register_type::<MaxToasts<M>>()
-            .register_type::<ToastTimer>();
+            .register_type::<ToastTimer>()
+            .register_type::<ToastTransition>();
     }
 }
 
@@ -87,11 +91,66 @@ impl<M: Component + TypePath + Default> ToastPlugin<M> {
         mut spawned_toasts: Query<(Entity, &mut ToastTimer), (With<M>, With<ToastUi>)>,
         time: Res<Time>,
     ) {
-        for (entity, mut timer) in spawned_toasts.iter_mut() {
+        for (entity, mut timer) in &mut spawned_toasts {
             timer.time_alive.tick(time.delta());
             if timer.time_alive.elapsed() > timer.lifetime {
-                // TODO: fade out?
-                // commands.entity(entity).despawn_recursive();
+                commands.entity(entity).insert(ToastTransition::FadeOut);
+            }
+        }
+    }
+
+    fn tick_transitions(
+        mut commands: Commands,
+        mut toast_nodes: Query<
+            (
+                Entity,
+                &mut Style,
+                &ToastTransition,
+                Option<&mut TransitionTimer>,
+            ),
+            With<ToastUi>,
+        >,
+        time: Res<Time>,
+    ) {
+        for (entity, mut style, transition, timer) in &mut toast_nodes {
+            let time = if let Some(mut timer) = timer {
+                timer.tick(time.delta());
+                timer.get_completion()
+            } else {
+                let mut timer = TransitionTimer::default();
+                timer.tick(time.delta());
+                let time = timer.get_completion();
+                commands.entity(entity).insert(timer);
+                time
+            };
+
+            fn ease(t: f32) -> f32 {
+                if t > 1. {
+                    1.
+                } else if t < 0. {
+                    0.
+                } else {
+                    1. - (std::f32::consts::PI * t).cos()
+                }
+            }
+
+            let left = ease(match transition {
+                ToastTransition::FadeIn => 1. - time,
+                ToastTransition::FadeOut => time,
+            });
+            style.left = Val::Percent(left * 100.);
+
+            if time >= 1. {
+                match transition {
+                    ToastTransition::FadeIn => {
+                        commands
+                            .entity(entity)
+                            .remove::<(ToastTransition, TransitionTimer)>();
+                    }
+                    ToastTransition::FadeOut => {
+                        commands.entity(entity).despawn_recursive();
+                    }
+                }
             }
         }
     }
@@ -157,21 +216,44 @@ impl<M: Component + TypePath + Default> ToastPlugin<M> {
 
         // spawn any toasts that we can
         for (entity, toast) in toasts_to_spawn.iter().take(num_toast_spaces) {
+            let mut toast_node = toast_nodes.toast().clone();
+            // set the left position to a 100% offset at first
+            toast_node.style.left = Val::Percent(100.);
             commands
                 .entity(entity)
-                .insert((ToastUi, toast_nodes.toast().clone(), M::default()))
+                .insert((ToastUi, toast_node, ToastTransition::FadeIn, M::default()))
                 .with_children(|builder| {
                     builder
-                        .spawn(ToastUi::dismiss_button(builder.parent_entity()))
+                        .spawn((Name::new("Toast Header UI"), toast_nodes.header().clone()))
                         .with_children(|builder| {
-                            builder.spawn(ToastUi::dismiss_text());
+                            builder
+                                .spawn(ToastUi::dismiss_button(entity))
+                                .with_children(|builder| {
+                                    builder.spawn(ToastUi::dismiss_text());
+                                });
                         });
-                    builder.spawn(ToastUi::text(
-                        toast.message.clone(),
-                        toast_nodes.text().clone(),
-                    ));
+                    builder
+                        .spawn((Name::new("Toast Body UI"), toast_nodes.body().clone()))
+                        .with_children(|builder| {
+                            builder.spawn(ToastUi::text(
+                                toast.message.clone(),
+                                toast_nodes.text().clone(),
+                            ));
+                        });
                 });
             commands.entity(root).add_child(entity);
+        }
+    }
+
+    fn handle_toast_button_bgs(
+        mut dismiss_buttons: Query<(&Interaction, &mut BackgroundColor), With<DismissButton>>,
+    ) {
+        for (interaction, mut bg_color) in &mut dismiss_buttons {
+            bg_color.0 = match interaction {
+                Interaction::Pressed => Color::DARK_GRAY,
+                Interaction::Hovered => Color::rgb(0.4, 0.4, 0.4),
+                Interaction::None => Color::rgb(0.35, 0.35, 0.35),
+            };
         }
     }
 
@@ -181,7 +263,12 @@ impl<M: Component + TypePath + Default> ToastPlugin<M> {
     ) {
         for (interaction, button) in &dismiss_buttons {
             if matches!(interaction, Interaction::Pressed) {
-                commands.entity(button.toast).despawn_recursive();
+                commands
+                    .entity(button.toast)
+                    .remove::<(ToastTransition, TransitionTimer)>();
+                commands
+                    .entity(button.toast)
+                    .insert(ToastTransition::FadeOut);
             }
         }
     }
@@ -245,22 +332,15 @@ where
 #[derive(Debug)]
 #[derive(Resource)]
 pub struct ToastElements<M> {
-    container: NodeBundle,
-    toast: NodeBundle,
-    text: TextStyle,
-    marker: PhantomData<M>,
+    pub container: NodeBundle,
+    pub toast: NodeBundle,
+    pub header: NodeBundle,
+    pub body: NodeBundle,
+    pub text: TextStyle,
+    pub marker: PhantomData<M>,
 }
 
 impl<M> ToastElements<M> {
-    pub fn new(container: NodeBundle, toast: NodeBundle, text: TextStyle) -> Self {
-        Self {
-            container,
-            toast,
-            text,
-            marker: PhantomData::<M>,
-        }
-    }
-
     pub fn container(&self) -> &NodeBundle {
         &self.container
     }
@@ -269,13 +349,21 @@ impl<M> ToastElements<M> {
         &self.toast
     }
 
+    pub fn header(&self) -> &NodeBundle {
+        &self.header
+    }
+
+    pub fn body(&self) -> &NodeBundle {
+        &self.body
+    }
+
     pub fn text(&self) -> &TextStyle {
         &self.text
     }
 
-    pub fn corner_popup() -> Self {
-        ToastElements::new(
-            NodeBundle {
+    pub fn corner_popup(toast_height: f32) -> Self {
+        ToastElements {
+            container: NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(70.),
@@ -283,7 +371,7 @@ impl<M> ToastElements<M> {
                     bottom: Val::Px(24.),
                     max_height: Val::Percent(60.),
                     display: Display::Flex,
-                    flex_direction: FlexDirection::ColumnReverse,
+                    flex_direction: FlexDirection::Column,
                     justify_content: JustifyContent::FlexEnd,
                     align_items: AlignItems::FlexEnd,
                     row_gap: Val::Px(8.),
@@ -292,68 +380,52 @@ impl<M> ToastElements<M> {
                 background_color: Color::rgba(0., 0., 0., 0.).into(),
                 ..Default::default()
             },
-            NodeBundle {
+            toast: NodeBundle {
                 style: Style {
                     flex_direction: FlexDirection::Column,
-                    align_items: AlignItems::FlexEnd,
-                    justify_content: JustifyContent::FlexEnd,
-                    border: UiRect::all(Val::Px(2.)),
+                    align_items: AlignItems::FlexStart,
+                    justify_content: JustifyContent::FlexStart,
                     width: Val::Percent(80.),
-                    min_height: Val::Px(80.),
+                    min_height: Val::Px(toast_height),
+                    border: UiRect::all(Val::Px(2.)),
                     ..Default::default()
                 },
                 background_color: Color::ALICE_BLUE.into(),
                 border_color: Color::DARK_GRAY.into(),
                 ..Default::default()
             },
-            TextStyle {
-                font_size: 24.,
-                color: Color::BLACK,
-                ..Default::default()
-            },
-        )
-    }
-
-    pub fn modal_stack() -> Self {
-        ToastElements::new(
-            NodeBundle {
+            header: NodeBundle {
                 style: Style {
-                    position_type: PositionType::Absolute,
-                    top: Val::Px(0.),
-                    right: Val::Px(0.),
-                    bottom: Val::Px(0.),
-                    left: Val::Px(0.),
+                    justify_content: JustifyContent::FlexEnd,
+                    width: Val::Percent(100.),
+                    height: Val::Px(20.),
                     ..Default::default()
                 },
-                background_color: Color::rgba(0., 0., 0., 0.2).into(),
+                background_color: Color::rgba(0., 0.8, 0.8, 0.8).into(),
                 ..Default::default()
             },
-            NodeBundle {
+            body: NodeBundle {
                 style: Style {
-                    position_type: PositionType::Absolute,
-                    top: Val::Percent(50.),
-                    right: Val::Percent(50.),
-                    margin: UiRect {
-                        left: Val::Percent(-50.),
-                        top: Val::Percent(-50.),
-                        ..Default::default()
-                    },
+                    flex_grow: 1.,
+                    padding: UiRect::all(Val::Px(4.)),
+                    width: Val::Percent(100.),
                     ..Default::default()
                 },
                 ..Default::default()
             },
-            TextStyle {
+            text: TextStyle {
                 font_size: 24.,
                 color: Color::BLACK,
                 ..Default::default()
             },
-        )
+            marker: Default::default(),
+        }
     }
 }
 
 impl<M> Default for ToastElements<M> {
     fn default() -> Self {
-        Self::corner_popup()
+        Self::corner_popup(DEFAULT_TOAST_HEIGHT)
     }
 }
 
@@ -389,6 +461,42 @@ pub struct ToastTimer {
     lifetime: Duration,
 }
 
+#[derive(Clone, Debug)]
+#[derive(Component, Reflect)]
+pub enum ToastTransition {
+    FadeIn,
+    FadeOut,
+}
+
+#[derive(Debug, Default)]
+#[derive(Component, Reflect)]
+pub struct TransitionTimer {
+    time_alive: Stopwatch,
+}
+
+impl TransitionTimer {
+    pub const DURATION: Duration = Duration::from_millis(500);
+
+    fn get_remaining(&self) -> Duration {
+        Self::DURATION.saturating_sub(self.time_alive.elapsed())
+    }
+
+    fn get_completion(&self) -> f32 {
+        (self.time_alive.elapsed().as_secs_f32() / Self::DURATION.as_secs_f32())
+            .max(0.)
+            .min(1.)
+    }
+
+    fn tick(&mut self, delta: Duration) {
+        self.time_alive.tick(delta);
+    }
+
+    /// Returns whether the timer has elapsed the constant duration or not.
+    fn is_complete(&self) -> bool {
+        self.get_remaining().is_zero()
+    }
+}
+
 #[derive(Debug)]
 #[derive(Component)]
 pub struct ToastUi;
@@ -406,13 +514,15 @@ impl ToastUi {
             Name::new("Dismiss Button"),
             ButtonBundle {
                 style: Style {
-                    width: Val::Px(30.),
-                    height: Val::Px(30.),
+                    width: Val::Px(22.),
+                    height: Val::Percent(100.),
+                    padding: UiRect::px(2., 2., 2., 4.),
                     align_self: AlignSelf::FlexEnd,
+                    align_items: AlignItems::Center,
+                    justify_content: JustifyContent::Center,
                     ..Default::default()
                 },
                 background_color: Color::DARK_GRAY.into(),
-                border_color: Color::GRAY.into(),
                 ..Default::default()
             },
             DismissButton { toast: parent },
