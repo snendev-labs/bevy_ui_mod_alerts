@@ -733,6 +733,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "bevy_mod_try_system"
+version = "0.1.0"
+source = "git+https://github.com/GroveStStudios/bevy_mod_try_system#a1b82f50406fc5405874d6c946004391d12ea806"
+dependencies = [
+ "bevy",
+]
+
+[[package]]
 name = "bevy_pbr"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -952,6 +960,7 @@ dependencies = [
  "anyhow",
  "bevy",
  "bevy_editor_pls",
+ "bevy_mod_try_system",
 ]
 
 [[package]]

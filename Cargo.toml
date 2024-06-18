@@ -4,11 +4,16 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.13", default-features = false, features = ["bevy_ui", "bevy_text", "default_font"] }
+bevy = { version = "0.13", default-features = false, features = [
+    "bevy_ui",
+    "bevy_text",
+    "default_font",
+] }
 anyhow = "1.0"
 
 [dev-dependencies]
 bevy_editor_pls = "*"
+bevy_mod_try_system = { git = "https://github.com/GroveStStudios/bevy_mod_try_system" }
 
 [[example]]
 name = "toasts"

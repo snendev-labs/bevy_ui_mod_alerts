@@ -32,9 +32,7 @@ impl ToastPlugin<ToastMarker> {
         In(toasts): In<Vec<String>>,
         mut commands: Commands,
         lifetime: Res<ToastLifetime<ToastMarker>>,
-    )
-    // M: Send + Sync + 'static,
-    {
+    ) {
         for toast in toasts {
             commands.spawn((Toast::bundle(toast, lifetime.lifetime.clone()), ToastMarker));
         }
@@ -445,20 +443,25 @@ pub struct DismissButton {
 mod tests {
     use bevy::time::TimeUpdateStrategy;
 
+    use bevy_mod_try_system::TrySystemExt;
+
     use super::*;
 
     #[derive(Default)]
     #[derive(Component, Reflect)]
     struct MyToast;
 
-    fn toast_per_second(time: Res<Time>, mut stopwatch: Local<Stopwatch>) -> Vec<String> {
+    fn toast_per_second(
+        time: Res<Time>,
+        mut stopwatch: Local<Stopwatch>,
+    ) -> Result<(), Vec<String>> {
         stopwatch.tick(time.delta());
         if stopwatch.elapsed_secs() >= 1. {
             let elapsed = stopwatch.elapsed();
             stopwatch.set_elapsed(elapsed.saturating_sub(Duration::from_secs(1)));
-            vec!["Another two seconds passed!".to_string()]
+            Err(vec!["Another two seconds passed!".to_string()])
         } else {
-            vec![]
+            Ok(())
         }
     }
 
@@ -472,11 +475,11 @@ mod tests {
             app.add_plugins(ToastPlugin::<MyToast>::default());
             app.add_systems(
                 Update,
-                toast_per_second.pipe(ToastPlugin::<MyToast>::custom_toast),
+                toast_per_second.pipe_err(ToastPlugin::<MyToast>::custom_toast),
             );
         } else {
             app.add_plugins(ToastPlugin::new());
-            app.add_systems(Update, toast_per_second.pipe(ToastPlugin::toast));
+            app.add_systems(Update, toast_per_second.pipe_err(ToastPlugin::toast));
         }
 
         app
