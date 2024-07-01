@@ -1,6 +1,12 @@
 [package]
 name = "bevy_ui_mod_alerts"
 version = "0.1.0"
+authors = ["Sean Sullivan <me@snen.dev>"]
+description = "Easy-spawn UIs that look like little popups."
+repository = "https://github.com/snendev-labs/bevy_ui_mod_alerts"
+license = "MIT OR Apache-2.0"
+keywords = ["bevy", "alerts", "ui", "game", "gamedev"]
+readme = "README.md"
 edition = "2021"
 
 [dependencies]
@@ -11,7 +17,7 @@ bevy = { version = "0.13", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-bevy_editor_pls = "*"
+bevy_editor_pls = "0.8"
 bevy_mod_try_system = { version = "0.1" }
 
 [[example]]
