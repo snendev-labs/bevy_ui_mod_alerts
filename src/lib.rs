@@ -455,11 +455,13 @@ pub struct AlertElements<M = AlertMarker> {
     pub marker: PhantomData<M>,
 }
 
-impl<M> AlertElements<M> {
+impl AlertElements<AlertMarker> {
     pub fn new() -> Self {
         Self::corner_popup(DEFAULT_ALERT_HEIGHT)
     }
+}
 
+impl<M> AlertElements<M> {
     /// Builds an AlertElements that styles the alerts like a typical corner "toast" pop-up.
     pub fn corner_popup(alert_height: f32) -> Self {
         AlertElements {
