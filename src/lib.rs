@@ -450,27 +450,11 @@ pub struct AlertElements<M = AlertMarker> {
 }
 
 impl<M> AlertElements<M> {
-    pub fn root(&self) -> &NodeBundle {
-        &self.root
+    pub fn new() -> Self {
+        Self::corner_popup(DEFAULT_ALERT_HEIGHT)
     }
 
-    pub fn alert(&self) -> &NodeBundle {
-        &self.alert
-    }
-
-    pub fn header(&self) -> &NodeBundle {
-        &self.header
-    }
-
-    pub fn body(&self) -> &NodeBundle {
-        &self.body
-    }
-
-    pub fn text(&self) -> &TextStyle {
-        &self.text
-    }
-
-    /// Builds a ToastElements that represents a typical corner "toast" pop-up.
+    /// Builds a ToastElements that styles the alerts like a typical corner "toast" pop-up.
     pub fn corner_popup(alert_height: f32) -> Self {
         AlertElements {
             root: NodeBundle {
@@ -528,14 +512,41 @@ impl<M> AlertElements<M> {
                 color: Color::BLACK,
                 ..Default::default()
             },
-            marker: Default::default(),
+            ..Default::default()
         }
+    }
+
+    pub fn root(&self) -> &NodeBundle {
+        &self.root
+    }
+
+    pub fn alert(&self) -> &NodeBundle {
+        &self.alert
+    }
+
+    pub fn header(&self) -> &NodeBundle {
+        &self.header
+    }
+
+    pub fn body(&self) -> &NodeBundle {
+        &self.body
+    }
+
+    pub fn text(&self) -> &TextStyle {
+        &self.text
     }
 }
 
 impl<M> Default for AlertElements<M> {
     fn default() -> Self {
-        Self::corner_popup(DEFAULT_ALERT_HEIGHT)
+        Self {
+            root: Default::default(),
+            alert: Default::default(),
+            header: Default::default(),
+            body: Default::default(),
+            text: Default::default(),
+            marker: Default::default(),
+        }
     }
 }
 
