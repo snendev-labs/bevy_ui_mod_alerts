@@ -1,3 +1,53 @@
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+
+//! `bevy_ui_mod_alerts` provides a
+//!
+//! ## Examples
+//!
+//! This example shows a system that returns some `Result`:
+//!
+//! ```
+//! use bevy::prelude::*;
+//! use bevy_anyhow_alerts::{AlertsPlugin, AnyhowAlertExt, Result};
+//!
+//! fn main() {
+//!     let mut app = App::new();
+//!     app.add_plugins(AlertsPlugin::new());
+//!     app.add_systems(Update, fallible_system.anyhow_alert());
+//!     app.run();
+//! }
+//!
+//! fn fallible_system(my_query: Query<&MyComponent>) -> Result<()> {
+//!     for my_value in my_query.iter() {
+//!         // we can use the `?` operator!
+//!         my_value.get_result()?;
+//!     }
+//!     Ok(())
+//! }
+//! ```
+//!
+//! Alternatively, the system can collect errors without interrupting the iteration and return
+//! a vector of `Result`s:
+//!
+//! ```
+//! fn fallible_system(my_query: Query<&MyComponent>) -> ResultVec<()> {
+//!     let mut errors = vec![];
+//!     for my_value in my_query.iter() {
+//!         // we can use the `?` operator!
+//!         if let Err(error) = my_value.get_result() {
+//!             errors.push(error);
+//!         }
+//!     }
+//!     if errors.is_empty() {
+//!         Ok(())
+//!     } else {
+//!         Err(errors)
+//!     }
+//! }
+//! ```
+//!
+//! The resulting UI is somewhat restylable but may not fit every application.
+
 use std::{marker::PhantomData, time::Duration};
 
 use bevy::{prelude::*, time::Stopwatch};
@@ -5,13 +55,14 @@ use bevy::{prelude::*, time::Stopwatch};
 pub const ALERT_Z_INDEX: i32 = 1000;
 pub const DEFAULT_ALERT_HEIGHT: f32 = 80.;
 
+/// A component representing an alert message that should be displayed in a UI.
 #[derive(Debug, Component)]
 pub struct Alert {
     message: String,
 }
 
 impl Alert {
-    pub fn bundle(message: impl Into<String>, lifetime: Duration) -> impl Bundle {
+    pub fn bundle(message: impl Into<String>) -> impl Bundle {
         (
             Self {
                 message: message.into(),
@@ -19,15 +70,25 @@ impl Alert {
             Name::new("Alert"),
             AlertTimer {
                 time_alive: Stopwatch::new(),
-                lifetime,
             },
         )
     }
 }
 
-// Alert Plugin accepts one type parameter, M.
-// This should implement Component and is used to allow multiple kinds
-// of alert mechanisms to exist in parallel.
+/// A Bevy plugin that must be attached in order to spawn alert UIs.
+///
+/// It accepts a type parameter, `M`, which should implement `Component`.
+/// To configure mulitple kinds of Alert behaviors, add separate `AlertsPlugin`s with unique types
+/// for M. A default (`AlertMarker`) is used if not.
+///
+/// ```
+/// let mut app = App::new();
+/// app.add_plugins(AlertsPlugin::new());
+/// app.add_systems(Update, || { vec![] }.pipe(AlertsPlugin::alert));
+/// // or, using a custom `MyAlert` marker:
+/// app.add_plugins(AlertsPlugin::<MyAlert>::default());
+/// app.add_systems(Update, || { vec![] }.pipe(AlertsPlugin::<MyAlert>::custom_alert);
+/// ```
 pub struct AlertsPlugin<M = AlertMarker> {
     marker: PhantomData<M>,
 }
@@ -41,17 +102,15 @@ impl<M> Default for AlertsPlugin<M> {
 }
 
 impl AlertsPlugin<AlertMarker> {
+    /// Builds a default AlertsPlugin.
     pub fn new() -> Self {
         Default::default()
     }
 
-    pub fn alert(
-        In(alerts): In<Vec<String>>,
-        mut commands: Commands,
-        lifetime: Res<AlertLifetime<AlertMarker>>,
-    ) {
+    /// A PipeableSystem that accepts a vector of alert messages and spawns `Alert`s for each of them.
+    pub fn alert(In(alerts): In<Vec<String>>, mut commands: Commands) {
         for alert in alerts {
-            commands.spawn((Alert::bundle(alert, lifetime.lifetime), AlertMarker));
+            commands.spawn((Alert::bundle(alert), AlertMarker));
         }
     }
 }
@@ -61,16 +120,15 @@ impl AlertsPlugin<AlertMarker> {
 pub struct AlertMarker;
 
 impl<M> AlertsPlugin<M> {
-    /// Users can `pipe` their systems into this method
-    pub fn custom_alert(
-        In(alerts): In<Vec<String>>,
-        mut commands: Commands,
-        lifetime: Res<AlertLifetime<M>>,
-    ) where
+    /// A PipeableSystem that accepts a vector of alert messages and spawns `Alert`s for each of them.
+    ///
+    /// Use this if you want to specify your own `AlertMarker`.
+    pub fn custom_alert(In(alerts): In<Vec<String>>, mut commands: Commands)
+    where
         M: Component + Default + TypePath + Send + Sync + 'static,
     {
         for alert in alerts {
-            commands.spawn((Alert::bundle(alert, lifetime.lifetime), M::default()));
+            commands.spawn((Alert::bundle(alert), M::default()));
         }
     }
 }
@@ -100,7 +158,9 @@ where
         app.register_type::<AlertLifetime<M>>()
             .register_type::<MaxAlerts<M>>()
             .register_type::<AlertTimer>()
-            .register_type::<AlertTransition>();
+            .register_type::<AlertTransition>()
+            .register_type::<AlertUiRoot>()
+            .register_type::<AlertUi>();
     }
 }
 
@@ -112,11 +172,12 @@ where
     fn tick_active_alerts(
         mut commands: Commands,
         mut spawned_alerts: Query<(Entity, &mut AlertTimer), (With<M>, With<AlertUi>)>,
+        lifetime: Res<AlertLifetime<M>>,
         time: Res<Time>,
     ) {
         for (entity, mut timer) in &mut spawned_alerts {
             timer.time_alive.tick(time.delta());
-            if timer.time_alive.elapsed() > timer.lifetime {
+            if timer.time_alive.elapsed() > lifetime.lifetime {
                 commands.entity(entity).insert(AlertTransition::FadeOut);
             }
         }
@@ -296,9 +357,12 @@ where
     }
 }
 
+/// The `SystemSet` in which alerts-related systems are run.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, SystemSet)]
 pub struct AlertSystems;
 
+/// A wrapper for the Duration that Alerts of this kind stay alive before transitioning out of
+/// the scene.
 #[derive(Debug, Resource, Reflect)]
 pub struct AlertLifetime<M: TypePath> {
     lifetime: Duration,
@@ -310,6 +374,7 @@ impl<M> AlertLifetime<M>
 where
     M: TypePath,
 {
+    // Builds a new `AlertLifetime` with this duration.
     pub fn new(lifetime: Duration) -> Self {
         AlertLifetime {
             lifetime,
@@ -318,6 +383,7 @@ where
     }
 }
 
+/// The maximum number of Alert UI nodes that can be shown in the UI at once.
 #[derive(Debug, Resource, Reflect)]
 pub struct MaxAlerts<M: TypePath> {
     max: usize,
@@ -348,6 +414,9 @@ where
     }
 }
 
+/// A type collecting the UI styles and presentational logic of each possible toast UI element.
+///
+/// Override this resource to restyle the alert UI elements.
 #[derive(Debug, Resource)]
 pub struct AlertElements<M> {
     pub container: NodeBundle,
@@ -379,6 +448,7 @@ impl<M> AlertElements<M> {
         &self.text
     }
 
+    /// Builds a ToastElements that represents a typical corner "toast" pop-up.
     pub fn corner_popup(alert_height: f32) -> Self {
         AlertElements {
             container: NodeBundle {
@@ -447,21 +517,24 @@ impl<M> Default for AlertElements<M> {
     }
 }
 
+/// A marker copmonent for the root node of the alerts UI.
 #[derive(Debug, Component, Reflect)]
 pub struct AlertUiRoot;
 
+/// A timer that tracks the current lifetime
 #[derive(Debug, Component, Reflect)]
 pub struct AlertTimer {
     time_alive: Stopwatch,
-    lifetime: Duration,
 }
 
+/// A flag that determines how the Alert transitions in and out of the UI.
 #[derive(Clone, Debug, Component, Reflect)]
 pub enum AlertTransition {
     FadeIn,
     FadeOut,
 }
 
+/// A timer for AlertTransitions.
 #[derive(Debug, Default, Component, Reflect)]
 pub struct TransitionTimer {
     time_alive: Stopwatch,
@@ -481,7 +554,8 @@ impl TransitionTimer {
     }
 }
 
-#[derive(Debug, Component)]
+/// A marker component for Alerts that have UI components added and children spawned.
+#[derive(Debug, Component, Reflect)]
 pub struct AlertUi;
 
 impl AlertUi {
@@ -527,6 +601,7 @@ impl AlertUi {
     }
 }
 
+/// A marker component for the button in the AlertUI node tree that dismisses the alert.
 #[derive(Component)]
 pub struct DismissButton {
     alert: Entity,
