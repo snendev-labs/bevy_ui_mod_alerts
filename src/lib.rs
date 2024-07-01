@@ -4,12 +4,12 @@
 //! errors using a convenient UI.
 //!
 //! Alerts can be spawned by directly spawning `AlertBundle`s using `AlertBundle` or
-//! `Alert::bundle`, or by piping a `Vec<String>` of alert messages into the `AlertsPlugin::toast`
+//! `Alert::bundle`, or by piping a `Vec<String>` of alert messages into the `AlertsPlugin::alert`
 //! system.
 //!
 //! ## Examples
 //!
-//! This example pipes some arbitrary system into the `AlertsPlugin::toast` system:
+//! This example pipes some arbitrary system into the `AlertsPlugin::alert` system:
 //!
 //! ```
 //! use bevy::prelude::*;
@@ -18,7 +18,7 @@
 //! fn main() {
 //!     let mut app = App::new();
 //!     app.add_plugins(AlertsPlugin::new());
-//!     app.add_systems(Update, do_stuff_and_maybe_alert().pipe(AlertsPlugin::toast));
+//!     app.add_systems(Update, do_stuff_and_maybe_alert().pipe(AlertsPlugin::alert));
 //!     app.run();
 //! }
 //!
@@ -307,10 +307,7 @@ where
                 .spawn((
                     AlertUiRoot,
                     Name::new("Alert UI Root"),
-                    NodeBundle {
-                        z_index: ZIndex::Local(ALERT_Z_INDEX),
-                        ..alert_nodes.root().clone()
-                    },
+                    alert_nodes.root().clone(),
                     M::default(),
                 ))
                 .id()
@@ -436,16 +433,25 @@ where
     }
 }
 
-/// A type collecting the UI styles and presentational logic of each possible toast UI element.
+/// A type collecting the UI styles and presentational logic of each possible alert UI element.
 ///
 /// Override this resource to restyle the alert UI elements.
 #[derive(Debug, Resource)]
 pub struct AlertElements<M = AlertMarker> {
+    /// The UI root node specification. Use this to frame the layer.
+    ///
+    /// The default view is an inner crop of the window space.
+    /// The default ZIndex is 1000 to overlay all other content.
     pub root: NodeBundle,
+    /// The alert node specification. This is the "card" for the alert.
     pub alert: NodeBundle,
+    /// The header node specification for the alert, which also renders the dismiss button.
     pub header: NodeBundle,
+    /// The body node specification for the alert, which has the text as child.
     pub body: NodeBundle,
+    /// The style spec for the body text of the alert.
     pub text: TextStyle,
+    /// A marker for supporting multiple alert styles.
     pub marker: PhantomData<M>,
 }
 
@@ -454,7 +460,7 @@ impl<M> AlertElements<M> {
         Self::corner_popup(DEFAULT_ALERT_HEIGHT)
     }
 
-    /// Builds a ToastElements that styles the alerts like a typical corner "toast" pop-up.
+    /// Builds an AlertElements that styles the alerts like a typical corner "toast" pop-up.
     pub fn corner_popup(alert_height: f32) -> Self {
         AlertElements {
             root: NodeBundle {
@@ -472,6 +478,7 @@ impl<M> AlertElements<M> {
                     ..Default::default()
                 },
                 background_color: Color::rgba(0., 0., 0., 0.).into(),
+                z_index: ZIndex::Local(ALERT_Z_INDEX),
                 ..Default::default()
             },
             alert: NodeBundle {

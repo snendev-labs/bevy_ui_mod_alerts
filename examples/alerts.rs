@@ -23,7 +23,7 @@ fn main() {
 pub struct MySystems;
 
 #[derive(Component)]
-pub struct ToastButton;
+pub struct AlertButton;
 
 fn init(mut commands: Commands) {
     commands.spawn((Camera2dBundle::default(), IsDefaultUiCamera));
@@ -44,7 +44,7 @@ fn init(mut commands: Commands) {
         ))
         .with_children(|builder| {
             builder.spawn(TextBundle::from_section(
-                "Press Space to fire toast (or try F)",
+                "Press Space to fire an alert (or try F)",
                 TextStyle {
                     font_size: 48.,
                     color: Color::BLACK,
@@ -56,7 +56,7 @@ fn init(mut commands: Commands) {
 
 fn make_messages(inputs: Res<ButtonInput<KeyCode>>) -> Vec<String> {
     if inputs.just_pressed(KeyCode::Space) {
-        vec!["Toast fired!".to_string()]
+        vec!["Alert fired!".to_string()]
     } else if inputs.just_pressed(KeyCode::KeyF) {
         vec![
             "F! F! F! F! F! Very very long message! Very very long! So long! Super long message!"

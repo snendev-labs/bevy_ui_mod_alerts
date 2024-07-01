@@ -16,6 +16,6 @@ bevy_editor_pls = "*"
 bevy_mod_try_system = { version = "0.1" }
 
 [[example]]
-name = "toasts"
-path = "examples/toasts.rs"
+name = "alerts"
+path = "examples/alerts.rs"
 required-features = ["bevy/bevy_winit", "bevy/x11"]
