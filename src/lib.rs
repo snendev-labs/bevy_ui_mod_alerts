@@ -39,9 +39,24 @@ impl ToastPlugin<ToastMarker> {
     }
 }
 
+impl<M> ToastPlugin<M> {
+    /// Users can `pipe` their systems into this method
+    pub fn custom_toast(
+        In(toasts): In<Vec<String>>,
+        mut commands: Commands,
+        lifetime: Res<ToastLifetime<M>>,
+    ) where
+        M: Component + Default + TypePath + Send + Sync + 'static,
+    {
+        for toast in toasts {
+            commands.spawn((Toast::bundle(toast, lifetime.lifetime), M::default()));
+        }
+    }
+}
+
 impl<M> Plugin for ToastPlugin<M>
 where
-    M: Component + TypePath + Default + Send + Sync + 'static,
+    M: Component + Default + TypePath + Send + Sync + 'static,
 {
     fn build(&self, app: &mut App) {
         app.init_resource::<ToastElements<M>>()
@@ -68,20 +83,10 @@ where
     }
 }
 
-impl<M: Component + TypePath + Default> ToastPlugin<M> {
-    /// Users can `pipe` their systems into this method
-    pub fn custom_toast(
-        In(toasts): In<Vec<String>>,
-        mut commands: Commands,
-        lifetime: Res<ToastLifetime<M>>,
-    )
-    // M: Send + Sync + 'static,
-    {
-        for toast in toasts {
-            commands.spawn((Toast::bundle(toast, lifetime.lifetime), M::default()));
-        }
-    }
-
+impl<M> ToastPlugin<M>
+where
+    M: Component + Default + TypePath,
+{
     #[allow(clippy::type_complexity)]
     fn tick_active_toasts(
         mut commands: Commands,
