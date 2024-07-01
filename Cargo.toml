@@ -1,5 +1,5 @@
 [package]
-name = "bevy_ui_alerts"
+name = "bevy_ui_mod_alerts"
 version = "0.1.0"
 edition = "2021"
 
