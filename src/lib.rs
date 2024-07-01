@@ -2,20 +2,37 @@ use std::{marker::PhantomData, time::Duration};
 
 use bevy::{prelude::*, time::Stopwatch};
 
-pub const TOAST_Z_INDEX: i32 = 1000;
-pub const DEFAULT_TOAST_HEIGHT: f32 = 80.;
+pub const ALERT_Z_INDEX: i32 = 1000;
+pub const DEFAULT_ALERT_HEIGHT: f32 = 80.;
 
-#[derive(Default, Component, Reflect)]
-pub struct ToastMarker;
+#[derive(Debug, Component)]
+pub struct Alert {
+    message: String,
+}
 
-// Toast Plugin accepts one type parameter, M.
+impl Alert {
+    pub fn bundle(message: impl Into<String>, lifetime: Duration) -> impl Bundle {
+        (
+            Self {
+                message: message.into(),
+            },
+            Name::new("Alert"),
+            AlertTimer {
+                time_alive: Stopwatch::new(),
+                lifetime,
+            },
+        )
+    }
+}
+
+// Alert Plugin accepts one type parameter, M.
 // This should implement Component and is used to allow multiple kinds
-// of toast mechanisms to exist in parallel.
-pub struct ToastPlugin<M = ToastMarker> {
+// of alert mechanisms to exist in parallel.
+pub struct AlertsPlugin<M = AlertMarker> {
     marker: PhantomData<M>,
 }
 
-impl<M> Default for ToastPlugin<M> {
+impl<M> Default for AlertsPlugin<M> {
     fn default() -> Self {
         Self {
             marker: PhantomData::<M>,
@@ -23,98 +40,102 @@ impl<M> Default for ToastPlugin<M> {
     }
 }
 
-impl ToastPlugin<ToastMarker> {
+impl AlertsPlugin<AlertMarker> {
     pub fn new() -> Self {
         Default::default()
     }
 
-    pub fn toast(
-        In(toasts): In<Vec<String>>,
+    pub fn alert(
+        In(alerts): In<Vec<String>>,
         mut commands: Commands,
-        lifetime: Res<ToastLifetime<ToastMarker>>,
+        lifetime: Res<AlertLifetime<AlertMarker>>,
     ) {
-        for toast in toasts {
-            commands.spawn((Toast::bundle(toast, lifetime.lifetime), ToastMarker));
+        for alert in alerts {
+            commands.spawn((Alert::bundle(alert, lifetime.lifetime), AlertMarker));
         }
     }
 }
 
-impl<M> ToastPlugin<M> {
+/// A default marker component for use with the default styles.
+#[derive(Debug, Default, Component, Reflect)]
+pub struct AlertMarker;
+
+impl<M> AlertsPlugin<M> {
     /// Users can `pipe` their systems into this method
-    pub fn custom_toast(
-        In(toasts): In<Vec<String>>,
+    pub fn custom_alert(
+        In(alerts): In<Vec<String>>,
         mut commands: Commands,
-        lifetime: Res<ToastLifetime<M>>,
+        lifetime: Res<AlertLifetime<M>>,
     ) where
         M: Component + Default + TypePath + Send + Sync + 'static,
     {
-        for toast in toasts {
-            commands.spawn((Toast::bundle(toast, lifetime.lifetime), M::default()));
+        for alert in alerts {
+            commands.spawn((Alert::bundle(alert, lifetime.lifetime), M::default()));
         }
     }
 }
 
-impl<M> Plugin for ToastPlugin<M>
+impl<M> Plugin for AlertsPlugin<M>
 where
     M: Component + Default + TypePath + Send + Sync + 'static,
 {
     fn build(&self, app: &mut App) {
-        app.init_resource::<ToastElements<M>>()
-            .insert_resource(ToastLifetime::<M>::new(Duration::from_secs(10)))
-            .insert_resource(MaxToasts::<M>::new(3))
+        app.init_resource::<AlertElements<M>>()
+            .insert_resource(AlertLifetime::<M>::new(Duration::from_secs(10)))
+            .insert_resource(MaxAlerts::<M>::new(3))
             .add_systems(
                 PostUpdate,
                 (
-                    Self::tick_active_toasts,
-                    Self::despawn_toast_root,
+                    Self::tick_active_alerts,
+                    Self::despawn_alert_root,
                     Self::tick_transitions,
-                    Self::spawn_toasts,
-                    Self::handle_toast_button_bgs,
-                    Self::handle_dismiss_toast_buttons,
+                    Self::spawn_alerts,
+                    Self::handle_alert_button_bgs,
+                    Self::handle_dismiss_alert_buttons,
                 )
                     .chain()
-                    .in_set(ToastSystems),
+                    .in_set(AlertSystems),
             );
 
-        app.register_type::<ToastLifetime<M>>()
-            .register_type::<MaxToasts<M>>()
-            .register_type::<ToastTimer>()
-            .register_type::<ToastTransition>();
+        app.register_type::<AlertLifetime<M>>()
+            .register_type::<MaxAlerts<M>>()
+            .register_type::<AlertTimer>()
+            .register_type::<AlertTransition>();
     }
 }
 
-impl<M> ToastPlugin<M>
+impl<M> AlertsPlugin<M>
 where
     M: Component + Default + TypePath,
 {
     #[allow(clippy::type_complexity)]
-    fn tick_active_toasts(
+    fn tick_active_alerts(
         mut commands: Commands,
-        mut spawned_toasts: Query<(Entity, &mut ToastTimer), (With<M>, With<ToastUi>)>,
+        mut spawned_alerts: Query<(Entity, &mut AlertTimer), (With<M>, With<AlertUi>)>,
         time: Res<Time>,
     ) {
-        for (entity, mut timer) in &mut spawned_toasts {
+        for (entity, mut timer) in &mut spawned_alerts {
             timer.time_alive.tick(time.delta());
             if timer.time_alive.elapsed() > timer.lifetime {
-                commands.entity(entity).insert(ToastTransition::FadeOut);
+                commands.entity(entity).insert(AlertTransition::FadeOut);
             }
         }
     }
 
     fn tick_transitions(
         mut commands: Commands,
-        mut toast_nodes: Query<
+        mut alert_nodes: Query<
             (
                 Entity,
                 &mut Style,
-                &ToastTransition,
+                &AlertTransition,
                 Option<&mut TransitionTimer>,
             ),
-            With<ToastUi>,
+            With<AlertUi>,
         >,
         time: Res<Time>,
     ) {
-        for (entity, mut style, transition, timer) in &mut toast_nodes {
+        for (entity, mut style, transition, timer) in &mut alert_nodes {
             let time = if let Some(mut timer) = timer {
                 timer.tick(time.delta());
                 timer.get_completion()
@@ -137,19 +158,19 @@ where
             }
 
             let left = ease(match transition {
-                ToastTransition::FadeIn => 1. - time,
-                ToastTransition::FadeOut => time,
+                AlertTransition::FadeIn => 1. - time,
+                AlertTransition::FadeOut => time,
             });
             style.left = Val::Percent(left * 100.);
 
             if time >= 1. {
                 match transition {
-                    ToastTransition::FadeIn => {
+                    AlertTransition::FadeIn => {
                         commands
                             .entity(entity)
-                            .remove::<(ToastTransition, TransitionTimer)>();
+                            .remove::<(AlertTransition, TransitionTimer)>();
                     }
-                    ToastTransition::FadeOut => {
+                    AlertTransition::FadeOut => {
                         commands.entity(entity).despawn_recursive();
                     }
                 }
@@ -158,87 +179,87 @@ where
     }
 
     #[allow(clippy::type_complexity)]
-    fn despawn_toast_root(
+    fn despawn_alert_root(
         mut commands: Commands,
-        spawned_toasts: Query<Entity, (With<M>, With<ToastUi>)>,
-        toasts_to_spawn: Query<(Entity, &Toast), (With<M>, Without<ToastUi>)>,
-        toasts_ui_root: Query<Entity, (With<M>, With<ToastUiRoot>)>,
+        spawned_alerts: Query<Entity, (With<M>, With<AlertUi>)>,
+        alerts_to_spawn: Query<(Entity, &Alert), (With<M>, Without<AlertUi>)>,
+        alerts_ui_root: Query<Entity, (With<M>, With<AlertUiRoot>)>,
     ) where
         M: Component + Send + Sync + 'static,
     {
-        let num_live_toasts = spawned_toasts.iter().count();
-        let num_unspawned_toasts = toasts_to_spawn.iter().count();
+        let num_live_alerts = spawned_alerts.iter().count();
+        let num_unspawned_alerts = alerts_to_spawn.iter().count();
 
-        // if there are no toasts, remove any containers
-        if num_unspawned_toasts + num_live_toasts == 0 && !toasts_ui_root.is_empty() {
+        // if there are no alerts, remove any containers
+        if num_unspawned_alerts + num_live_alerts == 0 && !alerts_ui_root.is_empty() {
             // This is fine as long as this plugin guarantees to only create one root at a time.
-            let entity = toasts_ui_root.single();
+            let entity = alerts_ui_root.single();
             commands.entity(entity).despawn_recursive();
         }
     }
 
     #[allow(clippy::type_complexity)]
-    fn spawn_toasts(
+    fn spawn_alerts(
         mut commands: Commands,
-        spawned_toasts: Query<Entity, (With<M>, With<ToastUi>)>,
-        toasts_to_spawn: Query<(Entity, &Toast), (With<M>, Without<ToastUi>)>,
-        toasts_ui_root: Query<Entity, (With<M>, With<ToastUiRoot>)>,
-        max_toasts: Res<MaxToasts<M>>,
-        toast_nodes: Res<ToastElements<M>>,
+        spawned_alerts: Query<Entity, (With<M>, With<AlertUi>)>,
+        alerts_to_spawn: Query<(Entity, &Alert), (With<M>, Without<AlertUi>)>,
+        alerts_ui_root: Query<Entity, (With<M>, With<AlertUiRoot>)>,
+        max_alerts: Res<MaxAlerts<M>>,
+        alert_nodes: Res<AlertElements<M>>,
     ) where
         M: Component + Send + Sync + 'static,
     {
-        let num_live_toasts = spawned_toasts.iter().count();
-        let num_toast_spaces = max_toasts.saturating_sub(num_live_toasts);
-        let num_unspawned_toasts = toasts_to_spawn.iter().count();
+        let num_live_alerts = spawned_alerts.iter().count();
+        let num_alert_spaces = max_alerts.saturating_sub(num_live_alerts);
+        let num_unspawned_alerts = alerts_to_spawn.iter().count();
 
-        if num_unspawned_toasts + num_live_toasts == 0 {
+        if num_unspawned_alerts + num_live_alerts == 0 {
             return;
         }
 
-        // if there are toasts and no root, add one first
-        let root = if toasts_ui_root.is_empty() {
+        // if there are alerts and no root, add one first
+        let root = if alerts_ui_root.is_empty() {
             // this is where we promise to only ever spawn one
             commands
                 .spawn((
-                    ToastUiRoot,
-                    Name::new("Toast UI Root"),
+                    AlertUiRoot,
+                    Name::new("Alert UI Root"),
                     NodeBundle {
-                        z_index: ZIndex::Local(TOAST_Z_INDEX),
-                        ..toast_nodes.container().clone()
+                        z_index: ZIndex::Local(ALERT_Z_INDEX),
+                        ..alert_nodes.container().clone()
                     },
                     M::default(),
                 ))
                 .id()
         } else {
             // otherwise get the root
-            toasts_ui_root.single()
+            alerts_ui_root.single()
         };
 
-        // spawn any toasts that we can
-        for (entity, toast) in toasts_to_spawn.iter().take(num_toast_spaces) {
-            let mut toast_node = toast_nodes.toast().clone();
+        // spawn any alerts that we can
+        for (entity, alert) in alerts_to_spawn.iter().take(num_alert_spaces) {
+            let mut alert_node = alert_nodes.alert().clone();
             // set the left position to a 100% offset at first
-            toast_node.style.left = Val::Percent(100.);
+            alert_node.style.left = Val::Percent(100.);
             commands
                 .entity(entity)
-                .insert((ToastUi, toast_node, ToastTransition::FadeIn, M::default()))
+                .insert((AlertUi, alert_node, AlertTransition::FadeIn, M::default()))
                 .with_children(|builder| {
                     builder
-                        .spawn((Name::new("Toast Header UI"), toast_nodes.header().clone()))
+                        .spawn((Name::new("Alert Header UI"), alert_nodes.header().clone()))
                         .with_children(|builder| {
                             builder
-                                .spawn(ToastUi::dismiss_button(entity))
+                                .spawn(AlertUi::dismiss_button(entity))
                                 .with_children(|builder| {
-                                    builder.spawn(ToastUi::dismiss_text());
+                                    builder.spawn(AlertUi::dismiss_text());
                                 });
                         });
                     builder
-                        .spawn((Name::new("Toast Body UI"), toast_nodes.body().clone()))
+                        .spawn((Name::new("Alert Body UI"), alert_nodes.body().clone()))
                         .with_children(|builder| {
-                            builder.spawn(ToastUi::text(
-                                toast.message.clone(),
-                                toast_nodes.text().clone(),
+                            builder.spawn(AlertUi::text(
+                                alert.message.clone(),
+                                alert_nodes.text().clone(),
                             ));
                         });
                 });
@@ -246,7 +267,7 @@ where
         }
     }
 
-    fn handle_toast_button_bgs(
+    fn handle_alert_button_bgs(
         mut dismiss_buttons: Query<(&Interaction, &mut BackgroundColor), With<DismissButton>>,
     ) {
         for (interaction, mut bg_color) in &mut dismiss_buttons {
@@ -258,39 +279,39 @@ where
         }
     }
 
-    fn handle_dismiss_toast_buttons(
+    fn handle_dismiss_alert_buttons(
         mut commands: Commands,
         dismiss_buttons: Query<(&Interaction, &DismissButton)>,
     ) {
         for (interaction, button) in &dismiss_buttons {
             if matches!(interaction, Interaction::Pressed) {
                 commands
-                    .entity(button.toast)
-                    .remove::<(ToastTransition, TransitionTimer)>();
+                    .entity(button.alert)
+                    .remove::<(AlertTransition, TransitionTimer)>();
                 commands
-                    .entity(button.toast)
-                    .insert(ToastTransition::FadeOut);
+                    .entity(button.alert)
+                    .insert(AlertTransition::FadeOut);
             }
         }
     }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, SystemSet)]
-pub struct ToastSystems;
+pub struct AlertSystems;
 
 #[derive(Debug, Resource, Reflect)]
-pub struct ToastLifetime<M: TypePath> {
+pub struct AlertLifetime<M: TypePath> {
     lifetime: Duration,
     #[reflect(ignore)]
     marker: PhantomData<M>,
 }
 
-impl<M> ToastLifetime<M>
+impl<M> AlertLifetime<M>
 where
     M: TypePath,
 {
     pub fn new(lifetime: Duration) -> Self {
-        ToastLifetime {
+        AlertLifetime {
             lifetime,
             marker: PhantomData::<M>,
         }
@@ -298,13 +319,13 @@ where
 }
 
 #[derive(Debug, Resource, Reflect)]
-pub struct MaxToasts<M: TypePath> {
+pub struct MaxAlerts<M: TypePath> {
     max: usize,
     #[reflect(ignore)]
     marker: PhantomData<M>,
 }
 
-impl<M> MaxToasts<M>
+impl<M> MaxAlerts<M>
 where
     M: TypePath,
 {
@@ -316,7 +337,7 @@ where
     }
 }
 
-impl<M> std::ops::Deref for MaxToasts<M>
+impl<M> std::ops::Deref for MaxAlerts<M>
 where
     M: TypePath,
 {
@@ -328,22 +349,22 @@ where
 }
 
 #[derive(Debug, Resource)]
-pub struct ToastElements<M> {
+pub struct AlertElements<M> {
     pub container: NodeBundle,
-    pub toast: NodeBundle,
+    pub alert: NodeBundle,
     pub header: NodeBundle,
     pub body: NodeBundle,
     pub text: TextStyle,
     pub marker: PhantomData<M>,
 }
 
-impl<M> ToastElements<M> {
+impl<M> AlertElements<M> {
     pub fn container(&self) -> &NodeBundle {
         &self.container
     }
 
-    pub fn toast(&self) -> &NodeBundle {
-        &self.toast
+    pub fn alert(&self) -> &NodeBundle {
+        &self.alert
     }
 
     pub fn header(&self) -> &NodeBundle {
@@ -358,8 +379,8 @@ impl<M> ToastElements<M> {
         &self.text
     }
 
-    pub fn corner_popup(toast_height: f32) -> Self {
-        ToastElements {
+    pub fn corner_popup(alert_height: f32) -> Self {
+        AlertElements {
             container: NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
@@ -377,13 +398,13 @@ impl<M> ToastElements<M> {
                 background_color: Color::rgba(0., 0., 0., 0.).into(),
                 ..Default::default()
             },
-            toast: NodeBundle {
+            alert: NodeBundle {
                 style: Style {
                     flex_direction: FlexDirection::Column,
                     align_items: AlignItems::FlexStart,
                     justify_content: JustifyContent::FlexStart,
                     width: Val::Percent(80.),
-                    min_height: Val::Px(toast_height),
+                    min_height: Val::Px(alert_height),
                     border: UiRect::all(Val::Px(2.)),
                     ..Default::default()
                 },
@@ -420,43 +441,23 @@ impl<M> ToastElements<M> {
     }
 }
 
-impl<M> Default for ToastElements<M> {
+impl<M> Default for AlertElements<M> {
     fn default() -> Self {
-        Self::corner_popup(DEFAULT_TOAST_HEIGHT)
-    }
-}
-
-#[derive(Debug, Component)]
-pub struct Toast {
-    message: String,
-}
-
-impl Toast {
-    pub fn bundle(message: impl Into<String>, lifetime: Duration) -> impl Bundle {
-        (
-            Self {
-                message: message.into(),
-            },
-            Name::new("Toast"),
-            ToastTimer {
-                time_alive: Stopwatch::new(),
-                lifetime,
-            },
-        )
+        Self::corner_popup(DEFAULT_ALERT_HEIGHT)
     }
 }
 
 #[derive(Debug, Component, Reflect)]
-pub struct ToastUiRoot;
+pub struct AlertUiRoot;
 
 #[derive(Debug, Component, Reflect)]
-pub struct ToastTimer {
+pub struct AlertTimer {
     time_alive: Stopwatch,
     lifetime: Duration,
 }
 
 #[derive(Clone, Debug, Component, Reflect)]
-pub enum ToastTransition {
+pub enum AlertTransition {
     FadeIn,
     FadeOut,
 }
@@ -481,12 +482,12 @@ impl TransitionTimer {
 }
 
 #[derive(Debug, Component)]
-pub struct ToastUi;
+pub struct AlertUi;
 
-impl ToastUi {
+impl AlertUi {
     fn text(message: String, style: TextStyle) -> impl Bundle {
         (
-            Name::new("Toast Text"),
+            Name::new("Alert Text"),
             TextBundle::from_section(message, style),
         )
     }
@@ -507,7 +508,7 @@ impl ToastUi {
                 background_color: Color::DARK_GRAY.into(),
                 ..Default::default()
             },
-            DismissButton { toast: parent },
+            DismissButton { alert: parent },
         )
     }
 
@@ -528,7 +529,7 @@ impl ToastUi {
 
 #[derive(Component)]
 pub struct DismissButton {
-    toast: Entity,
+    alert: Entity,
 }
 
 #[cfg(test)]
@@ -540,9 +541,9 @@ mod tests {
     use super::*;
 
     #[derive(Default, Component, Reflect)]
-    struct MyToast;
+    struct MyAlert;
 
-    fn toast_per_second(
+    fn alert_per_second(
         time: Res<Time>,
         mut stopwatch: Local<Stopwatch>,
     ) -> Result<(), Vec<String>> {
@@ -563,70 +564,70 @@ mod tests {
             250,
         )));
         if use_custom {
-            app.add_plugins(ToastPlugin::<MyToast>::default());
+            app.add_plugins(AlertsPlugin::<MyAlert>::default());
             app.add_systems(
                 Update,
-                toast_per_second.pipe_err(ToastPlugin::<MyToast>::custom_toast),
+                alert_per_second.pipe_err(AlertsPlugin::<MyAlert>::custom_alert),
             );
         } else {
-            app.add_plugins(ToastPlugin::new());
-            app.add_systems(Update, toast_per_second.pipe_err(ToastPlugin::toast));
+            app.add_plugins(AlertsPlugin::new());
+            app.add_systems(Update, alert_per_second.pipe_err(AlertsPlugin::alert));
         }
 
         app
     }
 
-    fn count_toasts(world: &mut World, use_custom: bool) -> usize {
+    fn count_alerts(world: &mut World, use_custom: bool) -> usize {
         if use_custom {
-            let mut query = world.query::<(&MyToast, &Toast)>();
+            let mut query = world.query::<(&MyAlert, &Alert)>();
             query.iter(&world).count()
         } else {
-            let mut query = world.query::<(&ToastMarker, &Toast)>();
+            let mut query = world.query::<(&AlertMarker, &Alert)>();
             query.iter(&world).count()
         }
     }
 
     #[test]
-    fn test_toast_ui() {
+    fn test_alert_ui() {
         for use_custom in [true, false] {
             let mut app = app(use_custom);
             // t: 0s
             app.update();
             // t: 0.25s
-            let toasts = count_toasts(&mut app.world, use_custom);
-            assert_eq!(toasts, 0);
+            let alerts = count_alerts(&mut app.world, use_custom);
+            assert_eq!(alerts, 0);
             app.update();
             // t: 0.5s
-            let toasts = count_toasts(&mut app.world, use_custom);
-            assert_eq!(toasts, 0);
+            let alerts = count_alerts(&mut app.world, use_custom);
+            assert_eq!(alerts, 0);
             app.update();
             // t: 0.75s
-            let toasts = count_toasts(&mut app.world, use_custom);
-            assert_eq!(toasts, 0);
+            let alerts = count_alerts(&mut app.world, use_custom);
+            assert_eq!(alerts, 0);
             app.update();
             // t: 1s
-            let toasts = count_toasts(&mut app.world, use_custom);
-            assert_eq!(toasts, 0);
+            let alerts = count_alerts(&mut app.world, use_custom);
+            assert_eq!(alerts, 0);
             app.update();
             // t: 1.25s
-            let toasts = count_toasts(&mut app.world, use_custom);
-            assert_eq!(toasts, 1);
+            let alerts = count_alerts(&mut app.world, use_custom);
+            assert_eq!(alerts, 1);
             app.update();
             // t: 1.5s
-            let toasts = count_toasts(&mut app.world, use_custom);
-            assert_eq!(toasts, 1);
+            let alerts = count_alerts(&mut app.world, use_custom);
+            assert_eq!(alerts, 1);
             app.update();
             // t: 1.75s
-            let toasts = count_toasts(&mut app.world, use_custom);
-            assert_eq!(toasts, 1);
+            let alerts = count_alerts(&mut app.world, use_custom);
+            assert_eq!(alerts, 1);
             app.update();
             // t: 2s
-            let toasts = count_toasts(&mut app.world, use_custom);
-            assert_eq!(toasts, 1);
+            let alerts = count_alerts(&mut app.world, use_custom);
+            assert_eq!(alerts, 1);
             app.update();
             // t: 2.25s
-            let toasts = count_toasts(&mut app.world, use_custom);
-            assert_eq!(toasts, 2);
+            let alerts = count_alerts(&mut app.world, use_custom);
+            assert_eq!(alerts, 2);
             app.update();
         }
     }

@@ -2,25 +2,24 @@ use bevy::prelude::*;
 
 use bevy_editor_pls::prelude::*;
 
-use bevy_toasts::ToastPlugin;
+use bevy_ui_alerts::AlertsPlugin;
 
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins);
     app.add_plugins(EditorPlugin::default().in_new_window(Window::default()));
-    app.add_plugins(ToastPlugin::new());
+    app.add_plugins(AlertsPlugin::new());
 
     app.add_systems(Startup, init);
     app.add_systems(
         Update,
-        fire_toast.pipe(ToastPlugin::toast).in_set(MySystems),
+        make_messages.pipe(AlertsPlugin::alert).in_set(MySystems),
     );
 
     app.run();
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-#[derive(SystemSet)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, SystemSet)]
 pub struct MySystems;
 
 #[derive(Component)]
@@ -55,7 +54,7 @@ fn init(mut commands: Commands) {
         });
 }
 
-fn fire_toast(inputs: Res<ButtonInput<KeyCode>>) -> Vec<String> {
+fn make_messages(inputs: Res<ButtonInput<KeyCode>>) -> Vec<String> {
     if inputs.just_pressed(KeyCode::Space) {
         vec!["Toast fired!".to_string()]
     } else if inputs.just_pressed(KeyCode::KeyF) {
