@@ -172,7 +172,7 @@ where
     M: Component + Default + TypePath + Send + Sync + 'static,
 {
     fn build(&self, app: &mut App) {
-        app.init_resource::<AlertElements<M>>()
+        app.insert_resource(AlertElements::<M>::new_custom())
             .insert_resource(AlertLifetime::<M>::new(Duration::from_secs(10)))
             .insert_resource(MaxAlerts::<M>::new(3))
             .add_systems(
@@ -474,6 +474,10 @@ impl AlertElements<AlertMarker> {
 }
 
 impl<M> AlertElements<M> {
+    pub fn new_custom() -> Self {
+        Self::corner_popup(DEFAULT_ALERT_HEIGHT)
+    }
+
     /// Builds an AlertElements that styles the alerts like a typical corner "toast" pop-up.
     pub fn corner_popup(alert_height: f32) -> Self {
         AlertElements {
