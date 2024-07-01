@@ -13,7 +13,7 @@ anyhow = "1.0"
 
 [dev-dependencies]
 bevy_editor_pls = "*"
-bevy_mod_try_system = { git = "https://github.com/GroveStStudios/bevy_mod_try_system" }
+bevy_mod_try_system = { version = "0.1" }
 
 [[example]]
 name = "toasts"
