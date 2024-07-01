@@ -1,15 +1,10 @@
 use bevy::prelude::*;
-
-use bevy_editor_pls::prelude::*;
-
 use bevy_ui_mod_alerts::AlertsPlugin;
 
 fn main() {
     let mut app = App::new();
     app.add_plugins(DefaultPlugins);
-    app.add_plugins(EditorPlugin::default().in_new_window(Window::default()));
     app.add_plugins(AlertsPlugin::new());
-
     app.add_systems(Startup, init);
     app.add_systems(
         Update,

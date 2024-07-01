@@ -17,7 +17,6 @@ bevy = { version = "0.13", default-features = false, features = [
 ] }
 
 [dev-dependencies]
-bevy_editor_pls = "0.8"
 bevy_mod_try_system = { version = "0.1" }
 
 [[example]]
