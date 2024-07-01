@@ -20,6 +20,7 @@
 //!     app.add_plugins(MinimalPlugins);
 //!     app.add_plugins(AlertsPlugin::new());
 //!     app.add_systems(Update, do_stuff_and_maybe_alert.pipe(AlertsPlugin::alert));
+//!     // app.run();
 //! }
 //!
 //! #[derive(Component)]
