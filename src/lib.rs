@@ -1,10 +1,15 @@
 #![cfg_attr(docsrs, feature(doc_auto_cfg))]
 
-//! `bevy_ui_mod_alerts` provides a
+//! `bevy_ui_mod_alerts` provides a "toast"-like alert UI which can be used to help manage
+//! errors using a convenient UI.
+//!
+//! Alerts can be spawned by directly spawning `AlertBundle`s using `AlertBundle` or
+//! `Alert::bundle`, or by piping a `Vec<String>` of alert messages into the `AlertsPlugin::toast`
+//! system.
 //!
 //! ## Examples
 //!
-//! This example shows a system that returns some `Result`:
+//! This example pipes some arbitrary system into the `AlertsPlugin::toast` system:
 //!
 //! ```
 //! use bevy::prelude::*;
@@ -13,40 +18,39 @@
 //! fn main() {
 //!     let mut app = App::new();
 //!     app.add_plugins(AlertsPlugin::new());
-//!     app.add_systems(Update, fallible_system.anyhow_alert());
+//!     app.add_systems(Update, do_stuff_and_maybe_alert().pipe(AlertsPlugin::toast));
 //!     app.run();
 //! }
 //!
-//! fn fallible_system(my_query: Query<&MyComponent>) -> Result<()> {
-//!     for my_value in my_query.iter() {
-//!         // we can use the `?` operator!
-//!         my_value.get_result()?;
-//!     }
-//!     Ok(())
-//! }
-//! ```
-//!
-//! Alternatively, the system can collect errors without interrupting the iteration and return
-//! a vector of `Result`s:
-//!
-//! ```
-//! fn fallible_system(my_query: Query<&MyComponent>) -> ResultVec<()> {
-//!     let mut errors = vec![];
-//!     for my_value in my_query.iter() {
-//!         // we can use the `?` operator!
-//!         if let Err(error) = my_value.get_result() {
-//!             errors.push(error);
-//!         }
-//!     }
-//!     if errors.is_empty() {
-//!         Ok(())
-//!     } else {
-//!         Err(errors)
-//!     }
+//! fn do_stuff_and_maybe_alert(my_query: Query<&MyComponent>) -> Vec<String> {
+//!     vec![]
 //! }
 //! ```
 //!
 //! The resulting UI is somewhat restylable but may not fit every application.
+//! Users can restyle the alerts with the `AlertElements` resource:
+//!
+//! ```
+//! app.insert_resource(AlertElements {
+//!     container, // NodeBundle
+//!     alert, // NodeBundle
+//!     header, // NodeBundle
+//!     body, // NodeBundle
+//!     text, // TextStyle
+//!     marker: PhantomData,
+//! });
+//! ```
+//!
+//! ...but it is not the most convenient to do so yet.
+//!
+//! Additionally, if users want multiple different alert styles to exist simultaneously,
+//! the type parameter `M` can be set to a custom component.
+//! Typically, the default `AlertMarker` is used.
+//!
+//! ```
+//! app.add_plugins(AlertsPlugin::<MyAlert>::default());
+//! app.add_systems(Update, || { vec![] }.pipe(AlertsPlugin::<MyAlert>::custom_alert);
+//! ```
 
 use std::{marker::PhantomData, time::Duration};
 
@@ -418,7 +422,7 @@ where
 ///
 /// Override this resource to restyle the alert UI elements.
 #[derive(Debug, Resource)]
-pub struct AlertElements<M> {
+pub struct AlertElements<M = AlertMarker> {
     pub container: NodeBundle,
     pub alert: NodeBundle,
     pub header: NodeBundle,
