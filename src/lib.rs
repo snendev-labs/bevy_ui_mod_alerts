@@ -13,7 +13,7 @@
 //!
 //! ```
 //! use bevy::prelude::*;
-//! use bevy_anyhow_alerts::{AlertsPlugin, AnyhowAlertExt, Result};
+//! use bevy_ui_mod_alerts::{AlertsPlugin, AnyhowAlertExt, Result};
 //!
 //! fn main() {
 //!     let mut app = App::new();
@@ -31,8 +31,13 @@
 //! Users can restyle the alerts with the `AlertElements` resource:
 //!
 //! ```
+//! use bevy::prelude::*;
+//! use bevy_ui_mod_alerts::AlertElements;
+//!
+//! let mut app = App::new();
+//! // ...
 //! app.insert_resource(AlertElements {
-//!     container, // NodeBundle
+//!     root, // NodeBundle
 //!     alert, // NodeBundle
 //!     header, // NodeBundle
 //!     body, // NodeBundle
@@ -48,8 +53,15 @@
 //! Typically, the default `AlertMarker` is used.
 //!
 //! ```
+//! use bevy::prelude::*;
+//! use bevy_ui_mod_alerts::AlertsPlugin;
+//!
+//! #[derive(Component)]
+//! struct MyAlert;
+//!
+//! let mut app = App::new();
 //! app.add_plugins(AlertsPlugin::<MyAlert>::default());
-//! app.add_systems(Update, || { vec![] }.pipe(AlertsPlugin::<MyAlert>::custom_alert);
+//! app.add_systems(Update, || { vec![] }.pipe(AlertsPlugin::<MyAlert>::custom_alert));
 //! ```
 
 use std::{marker::PhantomData, time::Duration};
@@ -86,12 +98,18 @@ impl Alert {
 /// for M. A default (`AlertMarker`) is used if not.
 ///
 /// ```
+/// use bevy::prelude::*;
+/// use bevy_ui_mod_alerts::AlertsPlugin;
+///
+/// #[derive(Component)]
+/// struct MyAlert;
+///
 /// let mut app = App::new();
 /// app.add_plugins(AlertsPlugin::new());
 /// app.add_systems(Update, || { vec![] }.pipe(AlertsPlugin::alert));
 /// // or, using a custom `MyAlert` marker:
 /// app.add_plugins(AlertsPlugin::<MyAlert>::default());
-/// app.add_systems(Update, || { vec![] }.pipe(AlertsPlugin::<MyAlert>::custom_alert);
+/// app.add_systems(Update, || { vec![] }.pipe(AlertsPlugin::<MyAlert>::custom_alert));
 /// ```
 pub struct AlertsPlugin<M = AlertMarker> {
     marker: PhantomData<M>,
@@ -255,7 +273,7 @@ where
         let num_live_alerts = spawned_alerts.iter().count();
         let num_unspawned_alerts = alerts_to_spawn.iter().count();
 
-        // if there are no alerts, remove any containers
+        // if there are no alerts, remove any roots
         if num_unspawned_alerts + num_live_alerts == 0 && !alerts_ui_root.is_empty() {
             // This is fine as long as this plugin guarantees to only create one root at a time.
             let entity = alerts_ui_root.single();
@@ -291,7 +309,7 @@ where
                     Name::new("Alert UI Root"),
                     NodeBundle {
                         z_index: ZIndex::Local(ALERT_Z_INDEX),
-                        ..alert_nodes.container().clone()
+                        ..alert_nodes.root().clone()
                     },
                     M::default(),
                 ))
@@ -423,7 +441,7 @@ where
 /// Override this resource to restyle the alert UI elements.
 #[derive(Debug, Resource)]
 pub struct AlertElements<M = AlertMarker> {
-    pub container: NodeBundle,
+    pub root: NodeBundle,
     pub alert: NodeBundle,
     pub header: NodeBundle,
     pub body: NodeBundle,
@@ -432,8 +450,8 @@ pub struct AlertElements<M = AlertMarker> {
 }
 
 impl<M> AlertElements<M> {
-    pub fn container(&self) -> &NodeBundle {
-        &self.container
+    pub fn root(&self) -> &NodeBundle {
+        &self.root
     }
 
     pub fn alert(&self) -> &NodeBundle {
@@ -455,7 +473,7 @@ impl<M> AlertElements<M> {
     /// Builds a ToastElements that represents a typical corner "toast" pop-up.
     pub fn corner_popup(alert_height: f32) -> Self {
         AlertElements {
-            container: NodeBundle {
+            root: NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
                     left: Val::Percent(70.),
