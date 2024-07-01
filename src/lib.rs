@@ -13,14 +13,17 @@
 //!
 //! ```
 //! use bevy::prelude::*;
-//! use bevy_ui_mod_alerts::{AlertsPlugin, AnyhowAlertExt, Result};
+//! use bevy_ui_mod_alerts::{AlertsPlugin};
 //!
 //! fn main() {
 //!     let mut app = App::new();
+//!     app.add_plugins(DefaultPlugins);
 //!     app.add_plugins(AlertsPlugin::new());
-//!     app.add_systems(Update, do_stuff_and_maybe_alert().pipe(AlertsPlugin::alert));
-//!     app.run();
+//!     app.add_systems(Update, do_stuff_and_maybe_alert.pipe(AlertsPlugin::alert));
 //! }
+//!
+//! #[derive(Component)]
+//! struct MyComponent;
 //!
 //! fn do_stuff_and_maybe_alert(my_query: Query<&MyComponent>) -> Vec<String> {
 //!     vec![]
@@ -32,18 +35,26 @@
 //!
 //! ```
 //! use bevy::prelude::*;
-//! use bevy_ui_mod_alerts::AlertElements;
+//! use bevy_ui_mod_alerts::{AlertMarker, AlertElements};
 //!
 //! let mut app = App::new();
 //! // ...
-//! app.insert_resource(AlertElements {
-//!     root, // NodeBundle
-//!     alert, // NodeBundle
-//!     header, // NodeBundle
-//!     body, // NodeBundle
-//!     text, // TextStyle
-//!     marker: PhantomData,
+//! app.insert_resource(AlertElements::<AlertMarker> {
+//!     // root: NodeBundle
+//!     // alert: NodeBundle
+//!     // header: NodeBundle
+//!     // body: NodeBundle
+//!     // text: TextStyle
+//!     ..Default::default()
 //! });
+//! ```
+//!
+//! Or make tweaks from the default:
+//!
+//! ```
+//! use bevy_ui_mod_alerts::AlertElements;
+//! let mut elements = AlertElements::new();
+//! elements.header.background_color.0 = bevy::prelude::Color::GREEN;
 //! ```
 //!
 //! ...but it is not the most convenient to do so yet.
@@ -56,12 +67,12 @@
 //! use bevy::prelude::*;
 //! use bevy_ui_mod_alerts::AlertsPlugin;
 //!
-//! #[derive(Component)]
+//! #[derive(Component, Default, Reflect)]
 //! struct MyAlert;
 //!
 //! let mut app = App::new();
 //! app.add_plugins(AlertsPlugin::<MyAlert>::default());
-//! app.add_systems(Update, || { vec![] }.pipe(AlertsPlugin::<MyAlert>::custom_alert));
+//! app.add_systems(Update, (|| { vec![] }).pipe(AlertsPlugin::<MyAlert>::custom_alert));
 //! ```
 
 use std::{marker::PhantomData, time::Duration};
@@ -101,15 +112,15 @@ impl Alert {
 /// use bevy::prelude::*;
 /// use bevy_ui_mod_alerts::AlertsPlugin;
 ///
-/// #[derive(Component)]
+/// #[derive(Component, Default, Reflect)]
 /// struct MyAlert;
 ///
 /// let mut app = App::new();
 /// app.add_plugins(AlertsPlugin::new());
-/// app.add_systems(Update, || { vec![] }.pipe(AlertsPlugin::alert));
+/// app.add_systems(Update, (|| { vec![] }).pipe(AlertsPlugin::alert));
 /// // or, using a custom `MyAlert` marker:
 /// app.add_plugins(AlertsPlugin::<MyAlert>::default());
-/// app.add_systems(Update, || { vec![] }.pipe(AlertsPlugin::<MyAlert>::custom_alert));
+/// app.add_systems(Update, (|| { vec![] }).pipe(AlertsPlugin::<MyAlert>::custom_alert));
 /// ```
 pub struct AlertsPlugin<M = AlertMarker> {
     marker: PhantomData<M>,
