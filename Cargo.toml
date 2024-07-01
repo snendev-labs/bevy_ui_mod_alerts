@@ -1,6 +1,6 @@
 [package]
 name = "bevy_ui_mod_alerts"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Sean Sullivan <me@snen.dev>"]
 description = "Easy-spawn UIs that look like little popups."
 repository = "https://github.com/snendev-labs/bevy_ui_mod_alerts"
