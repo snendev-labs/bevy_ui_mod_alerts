@@ -1,5 +1,5 @@
-# bevy_toasts_ui
+# bevy_ui_mod_alerts
 
-A quick-and-dirty implementation of some [Toast](https://open-ui.org/components/toast.research/) UI elements which can be spawned by inserting a `Toast` component onto an entity or by piping a `Vec<String>` into the `ToastPlugin::toast` function.
+A quick-and-dirty implementation of some ["toast" UI element](https://open-ui.org/components/toast.research/) represented by an `Alert` component. Call the `Alert::bundle` constructor to build an `AlertBundle`, or pipe a system that reutnrs `Vec<String>` into the `AlertsPlugin::alert` function, and a toast ui node will spawn (and eventually disappear if a lifetime is specified).
 
 See examples for more.
