@@ -10,14 +10,14 @@ readme = "README.md"
 edition = "2021"
 
 [dependencies]
-bevy = { version = "0.13", default-features = false, features = [
+bevy = { version = "0.14", default-features = false, features = [
     "bevy_ui",
     "bevy_text",
     "default_font",
 ] }
 
 [dev-dependencies]
-bevy_mod_try_system = { version = "0.1" }
+bevy_mod_try_system = { version = "0.2" }
 
 [[example]]
 name = "alerts"

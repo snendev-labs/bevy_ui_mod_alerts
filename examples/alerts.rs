@@ -1,4 +1,6 @@
+use bevy::color::palettes;
 use bevy::prelude::*;
+
 use bevy_ui_mod_alerts::AlertsPlugin;
 
 fn main() {
@@ -33,7 +35,7 @@ fn init(mut commands: Commands) {
                     align_items: AlignItems::Center,
                     ..Default::default()
                 },
-                background_color: Color::ANTIQUE_WHITE.into(),
+                background_color: Color::Srgba(palettes::css::ANTIQUE_WHITE).into(),
                 ..Default::default()
             },
         ))

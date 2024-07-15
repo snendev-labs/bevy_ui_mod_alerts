@@ -53,9 +53,11 @@
 //! Or make tweaks from the default:
 //!
 //! ```
+//! use bevy::prelude::Color;
+//! use bevy::color::palettes;
 //! use bevy_ui_mod_alerts::AlertElements;
 //! let mut elements = AlertElements::new();
-//! elements.header.background_color.0 = bevy::prelude::Color::GREEN;
+//! elements.header.background_color.0 = Color::Srgba(palettes::css::GREEN);
 //! ```
 //!
 //! ...but it is not the most convenient to do so yet.
@@ -364,9 +366,9 @@ where
     ) {
         for (interaction, mut bg_color) in &mut dismiss_buttons {
             bg_color.0 = match interaction {
-                Interaction::Pressed => Color::DARK_GRAY,
-                Interaction::Hovered => Color::rgb(0.4, 0.4, 0.4),
-                Interaction::None => Color::rgb(0.35, 0.35, 0.35),
+                Interaction::Pressed => Color::Srgba(bevy::color::palettes::css::DARK_GRAY),
+                Interaction::Hovered => Color::srgb(0.4, 0.4, 0.4),
+                Interaction::None => Color::srgb(0.35, 0.35, 0.35),
             };
         }
     }
@@ -495,7 +497,7 @@ impl<M> AlertElements<M> {
                     row_gap: Val::Px(8.),
                     ..Default::default()
                 },
-                background_color: Color::rgba(0., 0., 0., 0.).into(),
+                background_color: Color::srgba(0., 0., 0., 0.).into(),
                 z_index: ZIndex::Local(ALERT_Z_INDEX),
                 ..Default::default()
             },
@@ -509,8 +511,8 @@ impl<M> AlertElements<M> {
                     border: UiRect::all(Val::Px(2.)),
                     ..Default::default()
                 },
-                background_color: Color::ALICE_BLUE.into(),
-                border_color: Color::DARK_GRAY.into(),
+                background_color: Color::Srgba(bevy::color::palettes::css::ALICE_BLUE).into(),
+                border_color: Color::Srgba(bevy::color::palettes::css::DARK_GRAY).into(),
                 ..Default::default()
             },
             header: NodeBundle {
@@ -520,7 +522,7 @@ impl<M> AlertElements<M> {
                     height: Val::Px(20.),
                     ..Default::default()
                 },
-                background_color: Color::rgba(0., 0.8, 0.8, 0.8).into(),
+                background_color: Color::srgba(0., 0.8, 0.8, 0.8).into(),
                 ..Default::default()
             },
             body: NodeBundle {
@@ -637,7 +639,7 @@ impl AlertUi {
                     justify_content: JustifyContent::Center,
                     ..Default::default()
                 },
-                background_color: Color::DARK_GRAY.into(),
+                background_color: Color::Srgba(bevy::color::palettes::css::DARK_GRAY).into(),
                 ..Default::default()
             },
             DismissButton { alert: parent },
@@ -727,39 +729,39 @@ mod tests {
             // t: 0s
             app.update();
             // t: 0.25s
-            let alerts = count_alerts(&mut app.world, use_custom);
+            let alerts = count_alerts(app.world_mut(), use_custom);
             assert_eq!(alerts, 0);
             app.update();
             // t: 0.5s
-            let alerts = count_alerts(&mut app.world, use_custom);
+            let alerts = count_alerts(app.world_mut(), use_custom);
             assert_eq!(alerts, 0);
             app.update();
             // t: 0.75s
-            let alerts = count_alerts(&mut app.world, use_custom);
+            let alerts = count_alerts(app.world_mut(), use_custom);
             assert_eq!(alerts, 0);
             app.update();
             // t: 1s
-            let alerts = count_alerts(&mut app.world, use_custom);
+            let alerts = count_alerts(app.world_mut(), use_custom);
             assert_eq!(alerts, 0);
             app.update();
             // t: 1.25s
-            let alerts = count_alerts(&mut app.world, use_custom);
+            let alerts = count_alerts(app.world_mut(), use_custom);
             assert_eq!(alerts, 1);
             app.update();
             // t: 1.5s
-            let alerts = count_alerts(&mut app.world, use_custom);
+            let alerts = count_alerts(app.world_mut(), use_custom);
             assert_eq!(alerts, 1);
             app.update();
             // t: 1.75s
-            let alerts = count_alerts(&mut app.world, use_custom);
+            let alerts = count_alerts(app.world_mut(), use_custom);
             assert_eq!(alerts, 1);
             app.update();
             // t: 2s
-            let alerts = count_alerts(&mut app.world, use_custom);
+            let alerts = count_alerts(app.world_mut(), use_custom);
             assert_eq!(alerts, 1);
             app.update();
             // t: 2.25s
-            let alerts = count_alerts(&mut app.world, use_custom);
+            let alerts = count_alerts(app.world_mut(), use_custom);
             assert_eq!(alerts, 2);
             app.update();
         }
